@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Word Stream - A relaxing pixel art dictionary river. Click flowing words to discover their meanings.">
+    <meta name="keywords" content="dictionary, pixel art, relaxing, words, vocabulary, game">
+    <meta name="author" content="Word Stream">
+    <meta property="og:title" content="Word Stream">
+    <meta property="og:description" content="A relaxing pixel art dictionary river. Click flowing words to discover their meanings.">
+    <meta property="og:type" content="website">
+    <meta name="theme-color" content="#1a1625">
+    <title>Word Stream - Pixel Dictionary River</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        html, body {
+            background: #1a1625;
+            min-height: 100vh;
+            overflow: hidden;
+            font-family: 'Space Mono', monospace;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+        #gameCanvas { position: fixed; top: 0; left: 0; }
+        
+        .ui-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+        }
+        
+        .top-bar {
+            position: fixed; top: 0; left: 0; right: 0; padding: 18px 24px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: linear-gradient(180deg, rgba(15,12,25,0.9) 0%, rgba(15,12,25,0.4) 70%, transparent 100%);
+            pointer-events: auto;
+        }
+        
+        .logo {
+            font-family: 'Silkscreen', cursive; font-size: 13px;
+            color: rgba(255,255,255,0.8); letter-spacing: 2px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        
+        .logo-icon { font-size: 18px; }
+        
+        .top-right { display: flex; align-items: center; gap: 20px; }
+        
+        .word-count {
+            font-size: 11px; color: rgba(255,255,255,0.5); letter-spacing: 1px;
+        }
+        
+        .achievements-btn {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,215,0,0.25);
+            color: rgba(255,215,0,0.8); font-family: 'Space Mono', monospace; font-size: 10px;
+            padding: 8px 14px; cursor: pointer; border-radius: 6px; transition: all 0.2s;
+            display: flex; align-items: center; gap: 6px;
+        }
+        
+        .achievements-btn:hover { background: rgba(255,215,0,0.12); border-color: rgba(255,215,0,0.5); }
+        
+        .stats-bar {
+            position: fixed; top: 70px; right: 24px;
+            font-size: 10px; color: rgba(255,255,255,0.35); text-align: right;
+            letter-spacing: 0.5px;
+        }
+        
+        .stats-bar div { margin-bottom: 5px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+        .stats-bar span { color: rgba(255,255,255,0.6); }
+        
+        .floating-word {
+            position: absolute; font-family: 'Silkscreen', cursive; font-size: 10px;
+            color: rgba(255,255,255,0.92);
+            text-shadow: 0 2px 6px rgba(0,0,0,0.6), 0 0 16px rgba(200,220,255,0.25);
+            cursor: pointer; white-space: nowrap; pointer-events: auto;
+            transition: all 0.2s ease; letter-spacing: 1px;
+            will-change: transform;
+        }
+        
+        .floating-word:hover {
+            color: #ffd700;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.6), 0 0 24px rgba(255,215,0,0.7);
+            transform: scale(1.18);
+        }
+        
+        .secret-word {
+            color: #ffd700 !important;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.6), 0 0 24px rgba(255,215,0,0.7), 0 0 48px rgba(255,180,0,0.35) !important;
+            animation: secretPulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes secretPulse {
+            0%, 100% { filter: brightness(1) drop-shadow(0 0 8px rgba(255,215,0,0.5)); }
+            50% { filter: brightness(1.25) drop-shadow(0 0 16px rgba(255,215,0,0.8)); }
+        }
+        
+        .definition-card {
+            position: fixed; background: rgba(18,14,28,0.97);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 22px 26px;
+            max-width: 360px; min-width: 280px; z-index: 100; pointer-events: auto; display: none;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.6), 0 0 1px rgba(255,255,255,0.1);
+        }
+        
+        .definition-card.active { display: block; animation: cardIn 0.25s ease; }
+        
+        @keyframes cardIn {
+            0% { opacity: 0; transform: translateY(8px) scale(0.96); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+        .card-word { font-family: 'Silkscreen', cursive; font-size: 15px; color: #ffd700; letter-spacing: 2px; }
+        .card-close {
+            background: none; border: none; color: rgba(255,255,255,0.3); font-size: 20px;
+            cursor: pointer; padding: 0; width: 28px; height: 28px; display: flex;
+            align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s;
+            margin: -8px -8px 0 0;
+        }
+        .card-close:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
+        .card-phonetic { font-size: 12px; color: rgba(255,255,255,0.35); margin-bottom: 12px; }
+        .card-type {
+            display: inline-block; font-size: 9px; color: rgba(180,160,220,0.9);
+            background: rgba(180,160,220,0.12); padding: 4px 10px; border-radius: 20px;
+            margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1.5px;
+        }
+        .card-definition { font-size: 14px; color: rgba(255,255,255,0.85); line-height: 1.65; }
+        .card-secret-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 9px; color: #ffd700; background: rgba(255,215,0,0.12);
+            padding: 4px 10px; border-radius: 20px; margin-left: 8px;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        
+        .achievement-popup {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: linear-gradient(145deg, rgba(35,28,55,0.98) 0%, rgba(50,38,75,0.98) 100%);
+            border: 2px solid rgba(255,215,0,0.6); border-radius: 18px; padding: 32px 44px;
+            text-align: center; z-index: 200; pointer-events: none;
+            box-shadow: 0 0 80px rgba(255,215,0,0.3), 0 30px 80px rgba(0,0,0,0.6);
+            display: none;
+        }
+        
+        .achievement-popup.active { display: block; animation: achieveIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        
+        @keyframes achieveIn {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            60% { transform: translate(-50%, -50%) scale(1.08); }
+            100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        
+        .achieve-icon { font-size: 52px; margin-bottom: 14px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4)); }
+        .achieve-title { font-size: 10px; color: rgba(255,215,0,0.7); letter-spacing: 3px; margin-bottom: 10px; text-transform: uppercase; }
+        .achieve-name { font-family: 'Silkscreen', cursive; font-size: 17px; color: #fff; letter-spacing: 1px; margin-bottom: 8px; }
+        .achieve-desc { font-size: 13px; color: rgba(255,255,255,0.6); }
+        
+        .achievements-panel {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(15,12,24,0.98); backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 28px;
+            width: 92%; max-width: 520px; max-height: 75vh; overflow-y: auto;
+            z-index: 150; display: none; pointer-events: auto;
+            box-shadow: 0 30px 100px rgba(0,0,0,0.7);
+        }
+        
+        .achievements-panel.active { display: block; animation: cardIn 0.3s ease; }
+        .achievements-panel::-webkit-scrollbar { width: 6px; }
+        .achievements-panel::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 3px; }
+        .achievements-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+        
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .panel-header h2 { font-family: 'Silkscreen', cursive; font-size: 14px; color: #ffd700; display: flex; align-items: center; gap: 10px; }
+        .panel-close { background: none; border: none; color: rgba(255,255,255,0.4); font-size: 24px; cursor: pointer; padding: 4px; }
+        .panel-close:hover { color: rgba(255,255,255,0.8); }
+        .panel-progress { font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 20px; }
+        
+        .achieve-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 12px; }
+        
+        .achieve-item {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px; padding: 16px 12px; text-align: center; transition: all 0.25s;
+        }
+        .achieve-item.unlocked { border-color: rgba(255,215,0,0.35); background: rgba(255,215,0,0.06); }
+        .achieve-item.locked { opacity: 0.45; }
+        .achieve-item.locked .achieve-item-icon { filter: grayscale(1); }
+        .achieve-item-icon { font-size: 30px; margin-bottom: 10px; }
+        .achieve-item-name { font-family: 'Silkscreen', cursive; font-size: 8px; color: #fff; margin-bottom: 6px; letter-spacing: 0.5px; }
+        .achieve-item-desc { font-size: 10px; color: rgba(255,255,255,0.45); line-height: 1.4; }
+        
+        .controls {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; pointer-events: auto; opacity: 0.5; transition: opacity 0.3s;
+        }
+        .controls:hover { opacity: 1; }
+        
+        .ctrl-btn {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+            color: rgba(255,255,255,0.7); font-family: 'Space Mono', monospace; font-size: 10px;
+            padding: 10px 18px; cursor: pointer; border-radius: 8px; transition: all 0.2s;
+            letter-spacing: 1px;
+        }
+        .ctrl-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+        .ctrl-btn.active { background: rgba(255,215,0,0.12); border-color: rgba(255,215,0,0.35); color: #ffd700; }
+        
+        .hint {
+            position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+            font-size: 10px; color: rgba(255,255,255,0.2); letter-spacing: 2px;
+            text-transform: uppercase; pointer-events: none;
+        }
+        
+        .info-btn {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+            color: rgba(255,255,255,0.5); font-size: 14px; width: 32px; height: 32px;
+            cursor: pointer; border-radius: 50%; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .info-btn:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); }
+        
+        .info-panel {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(15,12,24,0.98); backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 32px;
+            width: 92%; max-width: 440px; z-index: 150; display: none; pointer-events: auto;
+            box-shadow: 0 30px 100px rgba(0,0,0,0.7);
+        }
+        .info-panel.active { display: block; animation: cardIn 0.3s ease; }
+        .info-panel h2 { font-family: 'Silkscreen', cursive; font-size: 14px; color: #fff; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .info-panel p { font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.7; margin-bottom: 16px; }
+        .info-panel ul { font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.8; padding-left: 20px; margin-bottom: 16px; }
+        .info-panel .secret-hint { color: #ffd700; font-size: 11px; font-style: italic; }
+        
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 140; display: none; }
+        .overlay.active { display: block; }
+        
+        @media (max-width: 600px) {
+            .top-bar { padding: 14px 16px; }
+            .logo { font-size: 11px; }
+            .achievements-btn { padding: 6px 10px; font-size: 9px; }
+            .achievements-btn span { display: none; }
+            .stats-bar { top: 60px; right: 16px; font-size: 9px; }
+            .floating-word { font-size: 9px; }
+            .definition-card { padding: 18px 20px; max-width: 300px; min-width: 260px; }
+            .card-word { font-size: 13px; }
+            .card-definition { font-size: 13px; }
+            .achieve-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div class="ui-layer" id="uiLayer">
+        <div class="top-bar">
+            <div class="logo">
+                <span class="logo-icon">🌊</span>
+                <span>WORD STREAM</span>
+            </div>
+            <div class="top-right">
+                <div class="word-count">Spawned: <span id="wordCounter">0</span></div>
+                <button class="achievements-btn" onclick="toggleAchievements()">🏆 <span>ACHIEVEMENTS</span></button>
+                <button class="info-btn" onclick="toggleInfo()">?</button>
+            </div>
+        </div>
+        
+        <div class="stats-bar">
+            <div>Clicked: <span id="clickedCount">0</span></div>
+            <div>Secrets: <span id="secretCount">0</span>/8</div>
+        </div>
+        
+        <div class="hint">click words to define</div>
+        
+        <div class="controls">
+            <button class="ctrl-btn" id="pauseBtn" onclick="togglePause()">PAUSE</button>
+            <button class="ctrl-btn" id="speedBtn" onclick="cycleSpeed()">1×</button>
+        </div>
+    </div>
+    
+    <div class="overlay" id="overlay" onclick="closeAllPanels()"></div>
+    
+    <div class="definition-card" id="card">
+        <div class="card-header">
+            <div>
+                <span class="card-word" id="cardWord"></span>
+                <span class="card-secret-badge" id="cardSecret" style="display:none">✨ SECRET</span>
+            </div>
+            <button class="card-close" onclick="closeCard()">×</button>
+        </div>
+        <div class="card-phonetic" id="cardPhonetic"></div>
+        <div class="card-type" id="cardType"></div>
+        <div class="card-definition" id="cardDef"></div>
+    </div>
+    
+    <div class="achievement-popup" id="achievePopup">
+        <div class="achieve-icon" id="achieveIcon">🏆</div>
+        <div class="achieve-title">ACHIEVEMENT UNLOCKED</div>
+        <div class="achieve-name" id="achieveName"></div>
+        <div class="achieve-desc" id="achieveDesc"></div>
+    </div>
+    
+    <div class="achievements-panel" id="achievePanel">
+        <div class="panel-header">
+            <h2>🏆 Achievements</h2>
+            <button class="panel-close" onclick="toggleAchievements()">×</button>
+        </div>
+        <div class="panel-progress" id="achieveProgress">0 / 12 unlocked</div>
+        <div class="achieve-grid" id="achieveGrid"></div>
+    </div>
+    
+    <div class="info-panel" id="infoPanel">
+        <button class="panel-close" onclick="toggleInfo()" style="position:absolute;top:16px;right:16px">×</button>
+        <h2>🌊 About Word Stream</h2>
+        <p>A relaxing pixel art experience where beautiful words flow down a mountain stream. Click on any word to discover its meaning.</p>
+        <p><strong>Features:</strong></p>
+        <ul>
+            <li>100+ carefully curated words from around the world</li>
+            <li>12 achievements to unlock</li>
+            <li>8 secret rare words with special glow</li>
+            <li>Adjustable flow speed</li>
+        </ul>
+        <p class="secret-hint">✨ Keep watching for golden words...</p>
+        <p style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:20px;margin-bottom:0">Press SPACE to pause • ESC to close panels</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const PX = 3;
+        let W, H, cols, rows;
+        let paused = false, speed = 1, wordCount = 0, frame = 0;
+        let lastTime = 0, accumulator = 0;
+        const TICK = 1000 / 60;
+
+        // ============== DICTIONARY ==============
+        const dict = [
+            // English beautiful words
+            { word: "EPHEMERAL", type: "adjective", def: "Lasting for a very short time; fleeting like morning dew.", ph: "/ɪˈfem(ə)rəl/" },
+            { word: "LUMINOUS", type: "adjective", def: "Full of light. Bright or shining, especially in the dark.", ph: "/ˈluːmɪnəs/" },
+            { word: "SERENDIPITY", type: "noun", def: "Finding something good without looking for it.", ph: "/ˌserənˈdɪpɪti/" },
+            { word: "PETRICHOR", type: "noun", def: "The pleasant smell after rain falls on dry earth.", ph: "/ˈpetrɪkɔːr/" },
+            { word: "ETHEREAL", type: "adjective", def: "Extremely delicate and light; not of this world.", ph: "/ɪˈθɪəriəl/" },
+            { word: "CASCADE", type: "noun", def: "A waterfall. Something that flows in stages.", ph: "/kæˈskeɪd/" },
+            { word: "AURORA", type: "noun", def: "Natural light display in the sky at dawn.", ph: "/ɔːˈrɔːrə/" },
+            { word: "SOLITUDE", type: "noun", def: "Being alone in a peaceful, pleasant way.", ph: "/ˈsɒlɪtjuːd/" },
+            { word: "WANDERLUST", type: "noun", def: "A strong desire to travel and explore.", ph: "/ˈwɒndəlʌst/" },
+            { word: "REVERIE", type: "noun", def: "A daydream. Being pleasantly lost in thought.", ph: "/ˈrevəri/" },
+            { word: "TRANQUIL", type: "adjective", def: "Calm, peaceful, free from disturbance.", ph: "/ˈtræŋkwɪl/" },
+            { word: "HALCYON", type: "adjective", def: "A past time that was idyllically happy.", ph: "/ˈhælsiən/" },
+            { word: "SUBLIME", type: "adjective", def: "Of outstanding beauty that inspires awe.", ph: "/səˈblaɪm/" },
+            { word: "NEBULA", type: "noun", def: "A glowing cloud of gas and dust in space.", ph: "/ˈnebjʊlə/" },
+            { word: "CELESTIAL", type: "adjective", def: "Relating to the sky and heavens above.", ph: "/sɪˈlestiəl/" },
+            { word: "VELLICHOR", type: "noun", def: "The wistful feeling inside old bookshops.", ph: "/ˈvelɪkɔːr/" },
+            { word: "SONDER", type: "noun", def: "Realizing everyone has a vivid inner life.", ph: "/ˈsɒndər/" },
+            { word: "MELLIFLUOUS", type: "adjective", def: "Sweet sounding, like flowing honey.", ph: "/məˈlɪfluəs/" },
+            { word: "GOSSAMER", type: "adjective", def: "Light, delicate, and insubstantial.", ph: "/ˈɡɒsəmər/" },
+            { word: "INCANDESCENT", type: "adjective", def: "Emitting light; passionate and brilliant.", ph: "/ˌɪnkænˈdesənt/" },
+            { word: "EFFERVESCENT", type: "adjective", def: "Bubbly, vivacious, and enthusiastic.", ph: "/ˌefərˈvesənt/" },
+            { word: "LABYRINTHINE", type: "adjective", def: "Like a labyrinth; complex and intricate.", ph: "/ˌlæbəˈrɪnθaɪn/" },
+            { word: "PHOSPHENE", type: "noun", def: "The light seen when eyes are closed and pressed.", ph: "/ˈfɒsfiːn/" },
+            { word: "SYZYGY", type: "noun", def: "An alignment of celestial bodies.", ph: "/ˈsɪzɪdʒi/" },
+            { word: "APRICITY", type: "noun", def: "The warmth of the sun in winter.", ph: "/əˈprɪsɪti/" },
+            { word: "NUMINOUS", type: "adjective", def: "Having a strong spiritual quality; divine.", ph: "/ˈnjuːmɪnəs/" },
+            { word: "ELOQUENCE", type: "noun", def: "Fluent and persuasive expression.", ph: "/ˈeləkwəns/" },
+            { word: "ZENITH", type: "noun", def: "The highest point; peak of achievement.", ph: "/ˈzenɪθ/" },
+            { word: "EPIPHANY", type: "noun", def: "A moment of sudden revelation or insight.", ph: "/ɪˈpɪfəni/" },
+            { word: "SONOROUS", type: "adjective", def: "Producing a full, deep, rich sound.", ph: "/ˈsɒnərəs/" },
+            { word: "RESPLENDENT", type: "adjective", def: "Shining brilliantly; splendid.", ph: "/rɪˈsplendənt/" },
+            { word: "DULCET", type: "adjective", def: "Sweet and soothing to hear.", ph: "/ˈdʌlsɪt/" },
+            { word: "BUCOLIC", type: "adjective", def: "Relating to pleasant countryside life.", ph: "/bjuːˈkɒlɪk/" },
+            { word: "SUSURRUS", type: "noun", def: "A whispering or rustling sound.", ph: "/suːˈsʌrəs/" },
+            { word: "CREPUSCULAR", type: "adjective", def: "Relating to twilight; dim and hazy.", ph: "/krɪˈpʌskjʊlər/" },
+            { word: "DIAPHANOUS", type: "adjective", def: "Light, delicate, and translucent.", ph: "/daɪˈæfənəs/" },
+            { word: "LIMERENCE", type: "noun", def: "The state of being infatuated.", ph: "/ˈlɪmərəns/" },
+            { word: "REDOLENT", type: "adjective", def: "Fragrant; strongly reminiscent of.", ph: "/ˈredələnt/" },
+            { word: "SEMPITERNAL", type: "adjective", def: "Eternal and unchanging; everlasting.", ph: "/ˌsempɪˈtɜːnəl/" },
+            { word: "INEFFABLE", type: "adjective", def: "Too great to be expressed in words.", ph: "/ɪnˈefəbl/" },
+            { word: "SCINTILLA", type: "noun", def: "A tiny trace or spark of something.", ph: "/sɪnˈtɪlə/" },
+            { word: "IRIDESCENT", type: "adjective", def: "Showing luminous colors that shift.", ph: "/ˌɪrɪˈdesənt/" },
+            { word: "SIBILANT", type: "adjective", def: "Making a hissing sound.", ph: "/ˈsɪbɪlənt/" },
+            { word: "PLETHORA", type: "noun", def: "A large or excessive amount.", ph: "/ˈpleθərə/" },
+            { word: "EBULLIENCE", type: "noun", def: "The quality of being cheerful and energetic.", ph: "/ɪˈbʊliəns/" },
+            { word: "FELICITY", type: "noun", def: "Intense happiness; a perfect expression.", ph: "/fɪˈlɪsɪti/" },
+            { word: "LANGUOR", type: "noun", def: "Pleasant tiredness or dreaminess.", ph: "/ˈlæŋɡər/" },
+            { word: "MELANCHOLY", type: "noun", def: "A deep, pensive sadness.", ph: "/ˈmelənkɒli/" },
+            { word: "QUINTESSENCE", type: "noun", def: "The purest essence of something.", ph: "/kwɪnˈtesəns/" },
+            { word: "RHAPSODY", type: "noun", def: "An expression of ecstatic feeling.", ph: "/ˈræpsədi/" },
+            
+            // World languages
+            { word: "QUERENCIA", type: "noun", def: "A place where one feels safe and at home.", ph: "/keˈɾensja/", origin: "Spanish" },
+            { word: "KOMOREBI", type: "noun", def: "Sunlight filtering through leaves.", ph: "/kɔmɔɾebi/", origin: "Japanese" },
+            { word: "HYGGE", type: "noun", def: "A cozy quality that creates contentment.", ph: "/ˈhʊɡə/", origin: "Danish" },
+            { word: "SAUDADE", type: "noun", def: "A melancholic longing for something lost.", ph: "/saʊˈdɑːdə/", origin: "Portuguese" },
+            { word: "TSUNDOKU", type: "noun", def: "Acquiring books but not reading them.", ph: "/tsɯndokɯ/", origin: "Japanese" },
+            { word: "MERAKI", type: "noun", def: "Doing something with soul and creativity.", ph: "/meˈrɑːki/", origin: "Greek" },
+            { word: "UBUNTU", type: "noun", def: "Humanity towards others; I am because we are.", ph: "/ʊˈbʊntuː/", origin: "Zulu" },
+            { word: "FERNWEH", type: "noun", def: "An ache for distant places; craving travel.", ph: "/ˈfɛʁnveː/", origin: "German" },
+            { word: "HIRAETH", type: "noun", def: "Homesickness for a home you can't return to.", ph: "/ˈhɪraɪ̯θ/", origin: "Welsh" },
+            { word: "YUGEN", type: "noun", def: "A profound awareness of the universe.", ph: "/juːɡen/", origin: "Japanese" },
+            { word: "EUDAIMONIA", type: "noun", def: "A state of flourishing and well-being.", ph: "/juːdaɪˈmoʊniə/", origin: "Greek" },
+            { word: "IKIGAI", type: "noun", def: "A reason for being; what makes life worthwhile.", ph: "/ikiɡai/", origin: "Japanese" },
+            { word: "WABI-SABI", type: "noun", def: "Finding beauty in imperfection.", ph: "/wɑːbi sɑːbi/", origin: "Japanese" },
+            { word: "GEZELLIG", type: "adjective", def: "Cozy, convivial, warm atmosphere.", ph: "/xəˈzɛləx/", origin: "Dutch" },
+            { word: "SOBREMESA", type: "noun", def: "Time spent talking after a meal.", ph: "/sobɾeˈmesa/", origin: "Spanish" },
+            { word: "WALDEINSAMKEIT", type: "noun", def: "The feeling of being alone in the woods.", ph: "/valtˈʔaɪnzaːmkaɪt/", origin: "German" },
+            { word: "TOSKA", type: "noun", def: "Deep spiritual anguish without cause.", ph: "/ˈtɔskə/", origin: "Russian" },
+            { word: "MAMIHLAPINATAPAI", type: "noun", def: "A shared look of unspoken understanding.", ph: "/mɑːmiːɬɑːpiːnɑːtɑːpɑːi/", origin: "Yaghan" },
+            { word: "DUENDE", type: "noun", def: "The power of art to deeply move someone.", ph: "/ˈdwende/", origin: "Spanish" },
+            { word: "FORELSKET", type: "noun", def: "The euphoria of falling in love.", ph: "/fɔˈrelskət/", origin: "Norwegian" },
+            { word: "GIGIL", type: "noun", def: "The urge to squeeze something cute.", ph: "/ˈɡiɡil/", origin: "Filipino" },
+            { word: "UBUNTU", type: "noun", def: "I am because we are; shared humanity.", ph: "/ʊˈbʊntuː/", origin: "Zulu" },
+            { word: "CAFUNE", type: "noun", def: "Running fingers through a loved one's hair.", ph: "/kɐˈfunɨ/", origin: "Portuguese" },
+            { word: "UITWAAIEN", type: "verb", def: "Walking in the wind to clear your mind.", ph: "/ˈœytvɑːjə/", origin: "Dutch" },
+            { word: "SHINRIN-YOKU", type: "noun", def: "Forest bathing; taking in the atmosphere.", ph: "/ʃinɾinjokɯ/", origin: "Japanese" },
+            { word: "DESENRASCANÇO", type: "noun", def: "Improvising a solution at the last minute.", ph: "/dɨzẽʁɐʃˈkɐ̃su/", origin: "Portuguese" },
+            { word: "AWARE", type: "noun", def: "The bittersweet feeling of impermanence.", ph: "/aɰaɾe/", origin: "Japanese" },
+            { word: "FIKA", type: "noun", def: "A coffee break with friends or colleagues.", ph: "/ˈfiːka/", origin: "Swedish" },
+            { word: "LAGOM", type: "noun", def: "Not too much, not too little; just right.", ph: "/ˈlɑːɡɔm/", origin: "Swedish" },
+            { word: "MERAK", type: "noun", def: "The pursuit of small daily pleasures.", ph: "/ˈmerak/", origin: "Serbian" },
+            { word: "TARAB", type: "noun", def: "Musically induced ecstasy or enchantment.", ph: "/tarab/", origin: "Arabic" },
+            { word: "GÖKOTTA", type: "noun", def: "Waking early to hear birds sing.", ph: "/jœːˈkɔtːa/", origin: "Swedish" },
+            { word: "FRILUFTSLIV", type: "noun", def: "Open-air living; connecting with nature.", ph: "/ˈfriːlʉftsliːv/", origin: "Norwegian" },
+            { word: "JAYUS", type: "noun", def: "A joke so unfunny it becomes funny.", ph: "/ˈdʒaɪ.uːs/", origin: "Indonesian" },
+            { word: "POCHEMUCHKA", type: "noun", def: "A person who asks too many questions.", ph: "/pəʧɪˈmuʧkə/", origin: "Russian" },
+            { word: "IKTSUARPOK", type: "noun", def: "Anticipation when waiting for someone.", ph: "/ɪkˈtsuːɑːrpɒk/", origin: "Inuit" },
+            { word: "DADIRRI", type: "noun", def: "Deep contemplative listening to nature.", ph: "/dʌˈdɪri/", origin: "Australian Aboriginal" },
+            { word: "MORGENFRISK", type: "adjective", def: "Feeling refreshed after a good sleep.", ph: "/ˈmɔrɡənfrɪsk/", origin: "Danish" },
+            { word: "BACKPFEIFENGESICHT", type: "noun", def: "A face that needs to be slapped.", ph: "/ˈbakˌpfaɪfənɡəˌzɪçt/", origin: "German" }
+        ];
+        
+        const secretWords = [
+            { word: "QUIDDITY", type: "noun", def: "The essence of something; what makes it unique. ✨ You found a secret!", ph: "/ˈkwɪdɪti/", secret: true },
+            { word: "ALEXITHYMIA", type: "noun", def: "Difficulty identifying and expressing emotions. ✨ A rare find!", ph: "/əˌleksɪˈθaɪmiə/", secret: true },
+            { word: "EIGENGRAU", type: "noun", def: "The dark grey color seen in complete darkness. ✨ Hidden knowledge!", ph: "/ˈaɪɡənɡraʊ/", secret: true },
+            { word: "SILLAGE", type: "noun", def: "The trail of scent left behind by perfume. ✨ A fragrant secret!", ph: "/siːˈjɑːʒ/", secret: true },
+            { word: "CHRYSALISM", type: "noun", def: "The peaceful feeling of being indoors during a storm. ✨ Rare word!", ph: "/ˈkrɪsəlɪzəm/", secret: true },
+            { word: "PSITHURISM", type: "noun", def: "The sound of wind whispering through trees. ✨ Nature's secret!", ph: "/ˈsɪθjʊrɪzəm/", secret: true },
+            { word: "VIRGA", type: "noun", def: "Rain that evaporates before reaching the ground. ✨ Phantom rain!", ph: "/ˈvɜːrɡə/", secret: true },
+            { word: "ZEPHYR", type: "noun", def: "A soft, gentle breeze from the west. ✨ Wind's whisper!", ph: "/ˈzefər/", secret: true }
+        ];
+        
+        const achievements = [
+            { id: 'first_word', name: 'First Steps', desc: 'Click your first word', icon: '👆', req: 1, type: 'click' },
+            { id: 'curious', name: 'Curious Mind', desc: 'Click 5 words', icon: '🔍', req: 5, type: 'click' },
+            { id: 'collector', name: 'Word Collector', desc: 'Click 15 words', icon: '📖', req: 15, type: 'click' },
+            { id: 'explorer', name: 'Lexicon Explorer', desc: 'Click 30 words', icon: '📚', req: 30, type: 'click' },
+            { id: 'scholar', name: 'Word Scholar', desc: 'Click 50 words', icon: '🎓', req: 50, type: 'click' },
+            { id: 'master', name: 'Vocabulary Master', desc: 'Click 75 words', icon: '📜', req: 75, type: 'click' },
+            { id: 'wizard', name: 'Word Wizard', desc: 'Click 100 words', icon: '🧙', req: 100, type: 'click' },
+            { id: 'legend', name: 'Living Dictionary', desc: 'Click 150 words', icon: '🏛️', req: 150, type: 'click' },
+            { id: 'secret1', name: 'Secret Finder', desc: 'Find a secret word', icon: '✨', req: 1, type: 'secret' },
+            { id: 'secret3', name: 'Mystery Seeker', desc: 'Find 3 secret words', icon: '🔮', req: 3, type: 'secret' },
+            { id: 'secret5', name: 'Hidden Knowledge', desc: 'Find 5 secret words', icon: '🌟', req: 5, type: 'secret' },
+            { id: 'secretall', name: 'Keeper of Secrets', desc: 'Find all 8 secret words', icon: '👑', req: 8, type: 'secret' }
+        ];
+        
+        let clickedWords = 0, secretsFound = 0;
+        let unlockedAchievements = new Set();
+        let foundSecrets = new Set();
+
+        // ============== COLORS ==============
+        const C = {
+            sky: ['#12101a', '#1a1628', '#252038', '#352d4a', '#453d5c', '#584d70', '#6a5d82', '#7d6d94', '#9080a6', '#a898b8', '#c4b0ca', '#e0c8dc'],
+            stars: ['#ffffff', '#ffeedd', '#ddddff', '#ffddff'],
+            cloudFar: ['#4a4060', '#5a5070', '#6a6080'],
+            cloudNear: ['#7a7090', '#8a80a0', '#9a90b0', '#aaa0c0'],
+            mtnFar: ['#1a1825', '#201e2a', '#252230', '#2a2635'],
+            mtnMid: ['#252535', '#2d2d40', '#35354a', '#3d3d55'],
+            mtnNear: ['#303045', '#383855', '#404065', '#484875'],
+            mtnSnow: ['#8090a0', '#90a0b0', '#a0b0c0', '#b0c0d0', '#c0d0e0'],
+            mtnRock: ['#3a3a4a', '#44445a', '#4e4e6a', '#585878'],
+            hillFar: ['#2a3a30', '#324838', '#3a5640', '#426448'],
+            hillNear: ['#3a4a38', '#445840', '#4e6648', '#587450'],
+            grass: ['#3a4a38', '#425842', '#4a664c', '#527456', '#5a8260', '#62906a'],
+            grassLight: ['#4a5a48', '#526852', '#5a765c', '#628466'],
+            flowers: ['#ff8090', '#ffaa60', '#ffff80', '#80ff90', '#80aaff', '#dd80ff'],
+            bush: ['#2a3a28', '#324832', '#3a563a', '#426442'],
+            riverbed: ['#2a3530', '#303a35', '#354038', '#3a453d'],
+            water: ['#2a4a5a', '#3a6070', '#4a7888', '#5a90a0', '#6aa8b8', '#7ac0d0', '#8ad8e8', '#9af0ff'],
+            foam: ['#a8d8e8', '#c0e8f0', '#d8f4f8', '#f0ffff'],
+            rock: ['#3a3a40', '#4a4a50', '#5a5a60', '#6a6a70'],
+            moss: ['#3a5a3a', '#4a6a4a', '#5a7a5a'],
+            path: ['#4a4540', '#5a5550', '#6a6560']
+        };
+
+        // ============== GAME STATE ==============
+        let river = [], rocks = [], drops = [], bubbles = [], ripples = [], floaters = [];
+        let staticBuffer, staticDrawn = false;
+        const MAX_WORDS = 5;
+        const MIN_WORD_SPACING = 140;
+
+        // ============== SETUP ==============
+        function resize() {
+            W = innerWidth; H = innerHeight;
+            cols = Math.ceil(W / PX);
+            rows = Math.ceil(H / PX);
+            canvas.width = cols;
+            canvas.height = rows;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            makeRiver();
+            makeRocks();
+            staticDrawn = false;
+            staticBuffer = document.createElement('canvas');
+            staticBuffer.width = cols;
+            staticBuffer.height = rows;
+        }
+
+        function makeRiver() {
+            river = [];
+            let x = cols * 0.4, w = 22;
+            for (let i = 0; i <= 60; i++) {
+                const t = i / 60, y = t * rows;
+                x += Math.sin(t * 5) * 0.7 + Math.sin(t * 9) * 0.35;
+                x = Math.max(30, Math.min(cols - 40, x));
+                w = 18 + Math.sin(t * 4) * 3 + t * 12;
+                river.push({ x, y, w, flow: 1 + Math.sin(t * 6) * 0.3 });
+            }
+        }
+
+        function makeRocks() {
+            rocks = [];
+            for (let i = 0; i < river.length; i += 5) {
+                const p = river[i];
+                if (Math.random() > 0.5) {
+                    const side = Math.random() > 0.5 ? 1 : -1;
+                    rocks.push({ x: p.x + side * (p.w / 2 * (0.3 + Math.random() * 0.4)), y: p.y, size: 2 + Math.floor(Math.random() * 2), inWater: true });
+                }
+                if (Math.random() > 0.5) {
+                    rocks.push({ x: p.x + p.w / 2 + 3 + Math.random() * 4, y: p.y, size: 2 + Math.floor(Math.random() * 3), inWater: false });
+                }
+            }
+        }
+
+        function getRiver(y) {
+            const s = rows / (river.length - 1);
+            const i = Math.min(river.length - 2, Math.max(0, Math.floor(y / s)));
+            const t = (y - i * s) / s;
+            const a = river[i], b = river[i + 1] || a;
+            return { x: a.x + (b.x - a.x) * t, w: a.w + (b.w - a.w) * t, flow: a.flow + (b.flow - a.flow) * t };
+        }
+
+        // ============== DRAWING ==============
+        function px(c, x, y, col) { c.fillStyle = col; c.fillRect(Math.floor(x), Math.floor(y), 1, 1); }
+        function noise(x, y, s) { return (Math.sin(x * s) + Math.sin(y * s * 1.3) + Math.sin((x + y) * s * 0.7)) / 3; }
+
+        function drawStatic() {
+            const sc = staticBuffer.getContext('2d');
+            sc.clearRect(0, 0, cols, rows);
+
+            // Sky
+            for (let y = 0; y < rows; y++) {
+                const t = y / rows;
+                const ci = Math.floor(t * (C.sky.length - 1));
+                sc.fillStyle = C.sky[ci];
+                sc.fillRect(0, y, cols, 1);
+            }
+
+            // Far clouds
+            for (let i = 0; i < 5; i++) {
+                const cx = (i * cols / 4 + 30) % cols;
+                const cy = rows * 0.08 + i * 8;
+                const w = 20 + i * 5;
+                for (let dx = -w; dx < w; dx++) {
+                    const h = 3 * Math.cos(dx / w * Math.PI);
+                    for (let dy = 0; dy < h; dy++) px(sc, cx + dx, cy + dy, C.cloudFar[dy % 3]);
+                }
+            }
+
+            // Far mountains
+            const farBase = Math.floor(rows * 0.32);
+            const farMts = [
+                { x: 0.0, h: 0.15, w: 0.18 }, { x: 0.15, h: 0.2, w: 0.2 }, { x: 0.32, h: 0.17, w: 0.18 },
+                { x: 0.48, h: 0.22, w: 0.22 }, { x: 0.65, h: 0.18, w: 0.2 }, { x: 0.82, h: 0.2, w: 0.2 }, { x: 0.95, h: 0.14, w: 0.15 }
+            ];
+            farMts.forEach((m, mi) => {
+                const peakX = Math.floor(m.x * cols), peakY = Math.floor(farBase - m.h * rows);
+                const hw = Math.floor(m.w * cols / 2);
+                for (let y = peakY; y <= farBase; y++) {
+                    const p = (y - peakY) / (farBase - peakY);
+                    const rw = Math.floor(p * hw);
+                    for (let dx = -rw; dx <= rw; dx++) {
+                        const xx = peakX + dx;
+                        if (xx < 0 || xx >= cols) continue;
+                        px(sc, xx, y, C.mtnFar[Math.floor((noise(xx, y, 0.3) + 1) * 2) % 4]);
+                    }
+                }
+            });
+
+            // Mid mountains
+            const midBase = Math.floor(rows * 0.38);
+            const midMts = [
+                { x: 0.05, h: 0.18, w: 0.22 }, { x: 0.25, h: 0.24, w: 0.26 },
+                { x: 0.5, h: 0.2, w: 0.24 }, { x: 0.72, h: 0.22, w: 0.25 }, { x: 0.92, h: 0.16, w: 0.2 }
+            ];
+            midMts.forEach((m, mi) => {
+                const peakX = Math.floor(m.x * cols), peakY = Math.floor(midBase - m.h * rows);
+                const hw = Math.floor(m.w * cols / 2);
+                for (let y = peakY; y <= midBase; y++) {
+                    const p = (y - peakY) / (midBase - peakY);
+                    const rw = Math.floor(p * hw);
+                    for (let dx = -rw; dx <= rw; dx++) {
+                        const xx = peakX + dx;
+                        if (xx < 0 || xx >= cols) continue;
+                        const n = noise(xx, y, 0.25);
+                        const isSnow = p < 0.25 && Math.abs(dx) < rw * 0.6 && n > -0.2;
+                        const isRock = p < 0.5 && n > 0.3;
+                        const shade = dx < 0 ? 0 : 2;
+                        if (isSnow) px(sc, xx, y, C.mtnSnow[Math.min(4, Math.floor((1 - p / 0.25) * 3))]);
+                        else if (isRock) px(sc, xx, y, C.mtnRock[shade]);
+                        else px(sc, xx, y, C.mtnMid[shade + (n > 0 ? 1 : 0)]);
+                    }
+                }
+            });
+
+            // Near mountains
+            const nearBase = Math.floor(rows * 0.46);
+            const nearMts = [
+                { x: 0.12, h: 0.14, w: 0.2 }, { x: 0.35, h: 0.18, w: 0.22 },
+                { x: 0.6, h: 0.15, w: 0.2 }, { x: 0.85, h: 0.16, w: 0.22 }
+            ];
+            nearMts.forEach((m, mi) => {
+                const peakX = Math.floor(m.x * cols), peakY = Math.floor(nearBase - m.h * rows);
+                const hw = Math.floor(m.w * cols / 2);
+                for (let y = peakY; y <= nearBase; y++) {
+                    const p = (y - peakY) / (nearBase - peakY);
+                    const rw = Math.floor(p * hw);
+                    for (let dx = -rw; dx <= rw; dx++) {
+                        const xx = peakX + dx;
+                        if (xx < 0 || xx >= cols) continue;
+                        const n = noise(xx, y, 0.2);
+                        const isSnow = p < 0.2 && Math.abs(dx) < rw * 0.5 && n > -0.3;
+                        const shade = dx < 0 ? 0 : 2;
+                        if (isSnow) px(sc, xx, y, C.mtnSnow[Math.floor((1 - p / 0.2) * 3)]);
+                        else {
+                            const hasTree = p > 0.4 && p < 0.85 && n > 0.2 && Math.abs(dx) > 3;
+                            if (hasTree && (xx + y) % 4 === 0) px(sc, xx, y, C.hillFar[1]);
+                            else px(sc, xx, y, C.mtnNear[shade + (n > 0.1 ? 1 : 0)]);
+                        }
+                    }
+                }
+            });
+
+            // Hills
+            const hillBase = Math.floor(rows * 0.52);
+            for (let layer = 0; layer < 3; layer++) {
+                const hb = hillBase - layer * 8;
+                const colors = layer === 0 ? C.hillNear : C.hillFar;
+                for (let x = 0; x < cols; x++) {
+                    const h = Math.floor(12 + Math.sin(x * 0.03 + layer) * 8 + Math.sin(x * 0.08 + layer * 2) * 5);
+                    for (let dy = 0; dy < h; dy++) {
+                        const y = hb - dy;
+                        px(sc, x, y, colors[Math.floor((noise(x, y, 0.15) + 1) * 2) % 4]);
+                    }
+                }
+            }
+
+            // Ground
+            const groundStart = Math.floor(rows * 0.48);
+            for (let y = groundStart; y < rows; y++) {
+                const r = getRiver(y);
+                for (let x = 0; x < cols; x++) {
+                    const d = Math.abs(x - r.x);
+                    if (d > r.w / 2 + 2) {
+                        const n = noise(x, y, 0.12), n2 = noise(x, y, 0.3);
+                        const dist = d - r.w / 2;
+                        if (dist < 5 && n2 > 0.3) px(sc, x, y, C.path[Math.floor((n + 1) * 1.5) % 3]);
+                        else if (n2 > 0.6 && dist > 8) px(sc, x, y, C.bush[Math.floor((n + 1) * 2) % 4]);
+                        else if (n > 0.4) px(sc, x, y, C.grassLight[Math.floor((n2 + 1) * 2) % 4]);
+                        else px(sc, x, y, C.grass[Math.floor((n + 1) * 3) % 6]);
+                    } else if (d > r.w / 2 - 1) {
+                        px(sc, x, y, C.riverbed[(x + y) % 4]);
+                    }
+                }
+            }
+
+            // Flowers
+            for (let i = 0; i < 80; i++) {
+                const fx = (i * 37 + 13) % cols;
+                const fy = groundStart + (i * 23 + 7) % (rows - groundStart - 10);
+                const r = getRiver(fy);
+                if (Math.abs(fx - r.x) > r.w / 2 + 8) px(sc, fx, fy, C.flowers[i % 6]);
+            }
+
+            // Trees
+            const treePositions = [];
+            for (let i = 0; i < 20; i++) {
+                const tx = (i < 10) ? (i * 0.03 + 0.02) : (0.75 + (i - 10) * 0.025);
+                const ty = 0.5 + (i * 0.031) % 0.4;
+                const r = getRiver(ty * rows);
+                if (Math.abs(tx * cols - r.x) > r.w / 2 + 10) treePositions.push({ x: tx, y: ty, size: 0.7 + Math.random() * 0.6 });
+            }
+            
+            treePositions.forEach((t, i) => {
+                const bx = Math.floor(t.x * cols), by = Math.floor(t.y * rows);
+                const size = t.size;
+                for (let dy = 0; dy < Math.floor(5 * size); dy++) {
+                    px(sc, bx, by + dy, '#3a2a20');
+                    if (size > 0.9) px(sc, bx + 1, by + dy, '#4a3a30');
+                }
+                for (let layer = 0; layer < Math.floor(4 * size); layer++) {
+                    const ly = by - layer * Math.floor(2 * size);
+                    const lw = Math.floor((4 - layer * 0.8) * size);
+                    for (let dy = 0; dy < 3; dy++) {
+                        const rw = lw - Math.floor(dy / 2);
+                        for (let dx = -rw; dx <= rw; dx++) {
+                            const n = noise(bx + dx, ly - dy, 0.5);
+                            px(sc, bx + dx, ly - dy, n > 0.3 ? C.grassLight[(Math.abs(dx) + dy + layer + i) % 4] : C.grass[(Math.abs(dx) + dy + layer + i) % 6]);
+                        }
+                    }
+                }
+            });
+
+            // Shore rocks
+            rocks.filter(r => !r.inWater).forEach(rock => {
+                for (let dy = 0; dy < rock.size; dy++) {
+                    for (let dx = 0; dx < rock.size - dy; dx++) {
+                        const xx = Math.floor(rock.x + dx - rock.size / 2);
+                        const yy = Math.floor(rock.y + dy);
+                        if (xx >= 0 && xx < cols && yy >= 0 && yy < rows) {
+                            px(sc, xx, yy, noise(xx, yy, 0.5) > 0.3 ? C.moss[dy % 3] : C.rock[dy === 0 ? 3 : 1]);
+                        }
+                    }
+                }
+            });
+
+            // Near clouds
+            for (let i = 0; i < 3; i++) {
+                const cx = cols * (0.2 + i * 0.35);
+                const cy = rows * 0.15 + i * 12;
+                const w = 30 + i * 8;
+                for (let dx = -w; dx < w; dx++) {
+                    const h = 5 * Math.cos(dx / w * Math.PI);
+                    for (let dy = 0; dy < h; dy++) px(sc, cx + dx, cy + dy, C.cloudNear[dy % 4]);
+                }
+            }
+
+            staticDrawn = true;
+        }
+
+        function drawWater() {
+            const start = Math.floor(rows * 0.48);
+            for (let y = start; y < rows; y++) {
+                const r = getRiver(y);
+                const hw = r.w / 2;
+                for (let dx = -hw; dx <= hw; dx++) {
+                    const xx = Math.floor(r.x + dx);
+                    if (xx < 0 || xx >= cols) continue;
+                    const edge = Math.abs(dx) / hw;
+                    const flow = Math.sin(y * 0.07 - frame * 0.07 * r.flow);
+                    const cross = Math.sin(dx * 0.12 + frame * 0.025);
+                    let ci;
+                    if (edge > 0.92) ci = 0;
+                    else if (edge > 0.8) ci = 1 + (flow > 0.3 ? 1 : 0);
+                    else if (edge > 0.5) ci = 2 + Math.floor((flow + 1) * 1.5);
+                    else ci = 4 + Math.floor((flow + cross * 0.3 + 1.5) * 1.2);
+                    px(ctx, xx, y, C.water[Math.min(7, Math.max(0, ci))]);
+                }
+            }
+        }
+
+        function drawWaterRocks() {
+            rocks.filter(r => r.inWater).forEach(rock => {
+                for (let dy = 0; dy < rock.size; dy++) {
+                    for (let dx = 0; dx < rock.size - dy; dx++) {
+                        const xx = Math.floor(rock.x + dx - rock.size / 2);
+                        const yy = Math.floor(rock.y + dy);
+                        if (xx >= 0 && xx < cols && yy >= 0 && yy < rows) px(ctx, xx, yy, C.rock[dy === 0 ? 3 : 1]);
+                    }
+                }
+                const wakeLen = 3 + Math.floor(Math.sin(frame * 0.08) * 2);
+                for (let i = 1; i <= wakeLen; i++) {
+                    if (Math.sin(frame * 0.12 + i) > 0) {
+                        px(ctx, Math.floor(rock.x - i * 0.3), Math.floor(rock.y + i), C.foam[2]);
+                        px(ctx, Math.floor(rock.x + i * 0.3), Math.floor(rock.y + i), C.foam[2]);
+                    }
+                }
+            });
+        }
+
+        function updateParticles(dt) {
+            const step = dt * speed;
+            while (drops.length < 120) {
+                const y = Math.random() * rows * 0.4 + rows * 0.5;
+                const r = getRiver(y);
+                drops.push({ x: r.x + (Math.random() - 0.5) * r.w * 0.65, y, sp: 0.7 + Math.random() * 0.4, wo: Math.random() * 6.28, br: 6 + Math.floor(Math.random() * 2) });
+            }
+            drops.forEach(d => {
+                const r = getRiver(d.y);
+                d.y += d.sp * r.flow * step;
+                d.x += (r.x + Math.sin(d.y * 0.04 + d.wo) * r.w * 0.1 - d.x) * 0.035 * step;
+                if (d.y > rows) { d.y = rows * 0.48; const nr = getRiver(d.y); d.x = nr.x + (Math.random() - 0.5) * nr.w * 0.4; }
+            });
+            while (bubbles.length < 35) {
+                const y = Math.random() * rows * 0.45 + rows * 0.5;
+                const r = getRiver(y);
+                bubbles.push({ x: r.x + (Math.random() > 0.5 ? 1 : -1) * (r.w / 2 - 1), y, sp: 0.4 + Math.random() * 0.25, side: Math.random() > 0.5 ? 1 : -1, life: 1, ph: Math.random() * 6.28 });
+            }
+            bubbles.forEach(b => {
+                const r = getRiver(b.y);
+                b.y += b.sp * r.flow * step;
+                b.x = r.x + b.side * (r.w / 2 - 1 + Math.sin(frame * 0.06 + b.ph) * 1.2);
+                b.life -= 0.003 * step;
+                if (b.y > rows || b.life < 0) { b.y = rows * 0.5; b.life = 1; }
+            });
+            while (ripples.length < 12) {
+                const y = Math.random() * rows * 0.4 + rows * 0.52;
+                const r = getRiver(y);
+                ripples.push({ x: r.x + (Math.random() - 0.5) * r.w * 0.5, y, rad: 0, max: 2 + Math.random() * 1.5, sp: 0.025 + Math.random() * 0.015 });
+            }
+            ripples.forEach(rp => {
+                rp.rad += rp.sp * step;
+                rp.y += 0.25 * step;
+                if (rp.rad > rp.max) { rp.rad = 0; rp.y = Math.random() * rows * 0.35 + rows * 0.52; const r = getRiver(rp.y); rp.x = r.x + (Math.random() - 0.5) * r.w * 0.4; }
+            });
+        }
+
+        function drawParticles() {
+            drops.forEach(d => { const r = getRiver(d.y); if (Math.abs(d.x - r.x) < r.w / 2 - 1) px(ctx, Math.floor(d.x), Math.floor(d.y), C.water[d.br]); });
+            bubbles.forEach(b => { if (b.life > 0.35) px(ctx, Math.floor(b.x), Math.floor(b.y), C.foam[Math.floor(b.life * 4) % 4]); });
+            ripples.forEach(rp => {
+                if (rp.rad > 0.5 && (1 - rp.rad / rp.max) > 0.3) {
+                    const rad = Math.floor(rp.rad);
+                    for (let i = 0; i < 6; i++) {
+                        const ang = i * Math.PI / 3;
+                        const rx = Math.floor(rp.x + Math.cos(ang) * rad);
+                        const ry = Math.floor(rp.y + Math.sin(ang) * rad * 0.5);
+                        const rv = getRiver(ry);
+                        if (Math.abs(rx - rv.x) < rv.w / 2) px(ctx, rx, ry, C.foam[3]);
+                    }
+                }
+            });
+            for (let i = 0; i < 15; i++) {
+                const sy = rows * 0.52 + (i * 41 + frame * 0.4) % (rows * 0.42);
+                const r = getRiver(sy);
+                const sx = r.x + Math.sin(i * 2.3 + sy * 0.08) * r.w * 0.2;
+                if (Math.sin(frame * 0.1 + i * 1.9) > 0.78) px(ctx, Math.floor(sx), Math.floor(sy), '#ffffff');
+            }
+        }
+
+        function drawStars() {
+            for (let i = 0; i < 60; i++) {
+                const sx = (i * 31 + 5) % cols, sy = (i * 19 + 2) % Math.floor(rows * 0.25);
+                if (Math.sin(frame * 0.025 + i * 2.5) > 0.55) px(ctx, sx, sy, C.stars[i % 4]);
+            }
+        }
+
+        // ============== WORDS ==============
+        function updateFloaters(dt) {
+            const step = dt * speed;
+            floaters.forEach(f => {
+                const r = getRiver(f.y / PX);
+                f.y += f.sp * r.flow * step * PX;
+                f.x += (r.x * PX + Math.sin(f.y * 0.007 + f.wo) * 40 - f.x) * 0.012 * step;
+                f.el.style.transform = `translate(${f.x}px, ${f.y}px)`;
+                if (f.y > H + 30) { f.el.remove(); f.dead = true; }
+            });
+            floaters = floaters.filter(f => !f.dead);
+        }
+
+        function spawnWord() {
+            if (paused) return;
+            if (floaters.length >= MAX_WORDS) return;
+            const topWords = floaters.filter(f => f.y < MIN_WORD_SPACING);
+            if (topWords.length > 0) return;
+            
+            let d;
+            const availableSecrets = secretWords.filter(s => !foundSecrets.has(s.word));
+            if (availableSecrets.length > 0 && Math.random() < 0.04) {
+                d = availableSecrets[Math.floor(Math.random() * availableSecrets.length)];
+            } else {
+                d = dict[Math.floor(Math.random() * dict.length)];
+            }
+            
+            const r = getRiver(rows * 0.48);
+            const el = document.createElement('div');
+            el.className = 'floating-word' + (d.secret ? ' secret-word' : '');
+            el.textContent = d.word;
+            el.style.transform = `translate(${r.x * PX}px, -25px)`;
+            el.onclick = e => showCard(e, d);
+            document.getElementById('uiLayer').appendChild(el);
+            floaters.push({ el, x: r.x * PX, y: -25, sp: 0.5 + Math.random() * 0.25, wo: Math.random() * 6.28, dead: false });
+            wordCount++;
+            document.getElementById('wordCounter').textContent = wordCount;
+        }
+
+        // ============== UI ==============
+        function showCard(e, d) {
+            const c = document.getElementById('card');
+            document.getElementById('cardWord').textContent = d.word;
+            document.getElementById('cardPhonetic').textContent = d.ph + (d.origin ? ` • ${d.origin}` : '');
+            document.getElementById('cardType').textContent = d.type;
+            document.getElementById('cardDef').textContent = d.def;
+            document.getElementById('cardSecret').style.display = d.secret ? 'inline-flex' : 'none';
+            
+            let x = e.clientX + 15, y = e.clientY - 30;
+            if (x + 360 > W) x = e.clientX - 375;
+            if (y + 200 > H) y = H - 210;
+            if (y < 10) y = 10;
+            if (x < 10) x = 10;
+            c.style.left = x + 'px'; c.style.top = y + 'px';
+            c.classList.add('active');
+            
+            clickedWords++;
+            document.getElementById('clickedCount').textContent = clickedWords;
+            
+            if (d.secret && !foundSecrets.has(d.word)) {
+                foundSecrets.add(d.word);
+                secretsFound++;
+                document.getElementById('secretCount').textContent = secretsFound;
+                checkAchievements();
+            }
+            checkAchievements();
+        }
+
+        function checkAchievements() {
+            achievements.forEach(a => {
+                if (unlockedAchievements.has(a.id)) return;
+                let unlocked = false;
+                if (a.type === 'click' && clickedWords >= a.req) unlocked = true;
+                if (a.type === 'secret' && secretsFound >= a.req) unlocked = true;
+                if (unlocked) unlockAchievement(a.id);
+            });
+        }
+
+        function unlockAchievement(id) {
+            if (unlockedAchievements.has(id)) return;
+            unlockedAchievements.add(id);
+            const a = achievements.find(x => x.id === id);
+            if (!a) return;
+            
+            document.getElementById('achieveIcon').textContent = a.icon;
+            document.getElementById('achieveName').textContent = a.name;
+            document.getElementById('achieveDesc').textContent = a.desc;
+            const popup = document.getElementById('achievePopup');
+            popup.classList.add('active');
+            setTimeout(() => popup.classList.remove('active'), 3500);
+            renderAchievements();
+        }
+
+        function renderAchievements() {
+            document.getElementById('achieveProgress').textContent = `${unlockedAchievements.size} / ${achievements.length} unlocked`;
+            document.getElementById('achieveGrid').innerHTML = achievements.map(a => `
+                <div class="achieve-item ${unlockedAchievements.has(a.id) ? 'unlocked' : 'locked'}">
+                    <div class="achieve-item-icon">${a.icon}</div>
+                    <div class="achieve-item-name">${unlockedAchievements.has(a.id) ? a.name : '???'}</div>
+                    <div class="achieve-item-desc">${unlockedAchievements.has(a.id) ? a.desc : 'Locked'}</div>
+                </div>
+            `).join('');
+        }
+
+        function closeCard() { document.getElementById('card').classList.remove('active'); }
+        function closeAllPanels() {
+            document.getElementById('achievePanel').classList.remove('active');
+            document.getElementById('infoPanel').classList.remove('active');
+            document.getElementById('overlay').classList.remove('active');
+        }
+        function toggleAchievements() {
+            const panel = document.getElementById('achievePanel');
+            const isActive = panel.classList.contains('active');
+            closeAllPanels();
+            if (!isActive) {
+                panel.classList.add('active');
+                document.getElementById('overlay').classList.add('active');
+                renderAchievements();
+            }
+        }
+        function toggleInfo() {
+            const panel = document.getElementById('infoPanel');
+            const isActive = panel.classList.contains('active');
+            closeAllPanels();
+            if (!isActive) {
+                panel.classList.add('active');
+                document.getElementById('overlay').classList.add('active');
+            }
+        }
+        function togglePause() {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? 'PLAY' : 'PAUSE';
+            document.getElementById('pauseBtn').classList.toggle('active', paused);
+        }
+        function cycleSpeed() {
+            speed = speed === 1 ? 2 : speed === 2 ? 3 : 1;
+            document.getElementById('speedBtn').textContent = speed + '×';
+        }
+
+        // ============== GAME LOOP ==============
+        function gameLoop(ts) {
+            if (!lastTime) lastTime = ts;
+            const dt = ts - lastTime;
+            lastTime = ts;
+            
+            if (!paused) {
+                accumulator += dt;
+                let steps = 0;
+                while (accumulator >= TICK && steps < 4) {
+                    frame++;
+                    updateParticles(1);
+                    updateFloaters(1);
+                    accumulator -= TICK;
+                    steps++;
+                }
+                if (steps >= 4) accumulator = 0;
+            }
+            
+            if (!staticDrawn) drawStatic();
+            ctx.drawImage(staticBuffer, 0, 0);
+            drawStars();
+            drawWater();
+            drawWaterRocks();
+            drawParticles();
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ============== EVENTS ==============
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.definition-card') && !e.target.classList.contains('floating-word') && 
+                !e.target.closest('.controls') && !e.target.closest('.achievements-btn') && 
+                !e.target.closest('.achievements-panel') && !e.target.closest('.info-btn') && 
+                !e.target.closest('.info-panel') && !e.target.closest('.overlay')) {
+                closeCard();
+            }
+        });
+        
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') { closeCard(); closeAllPanels(); }
+            if (e.key === ' ' && !e.target.closest('button')) { e.preventDefault(); togglePause(); }
+        });
+        
+        window.addEventListener('resize', resize);
+
+        // ============== INIT ==============
+        resize();
+        renderAchievements();
+        requestAnimationFrame(gameLoop);
+        spawnWord();
+        setInterval(() => { if (!paused) spawnWord(); }, 800);
+    </script>
+</body>
+</html>
